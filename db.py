@@ -1,5 +1,3 @@
-import time
-
 """
   Copyright © 2019 OXYS
  All rights reserved.
@@ -26,31 +24,16 @@ import time
  DAMAGE.
  Created by Mario Martin 2019
 """
+# LMDB database
+import lmdb
 
-class Sample:
-    def __init__(self, name, data):
-        self.type_of = name
-        self.timestamp = time.time()
-        self.buffer = list(data)
-        self.data = list()
-        self.length = len(self.buffer)
-        self.range_of_data = range(len(self.buffer))
+class Database:
     
-    def formatted_buffer(self):
-        the_fifo = self.range_of_data
-        formatted_samples = list()
-        formatted_channels = list()
+    def push_to_storage(self, data):
+        db = lmdb.open('./data', map_size=99999999)
 
-        for each_sample in the_fifo:
-            formatted_channels.append(self.buffer[each_sample])
+        with db.begin(write=True, buffers=True) as trx:
 
-            if len(formatted_channels) == 10:
-                formatted_samples.append(formatted_channels)
-                formatted_channels = list()
+            trx.put(data['time'], data['data'])
 
-
-        self.data = formatted_samples
-
-        return { 'time': str(self.timestamp).encode(), 'data': str(formatted_samples).encode() }
-
-
+        db.close()

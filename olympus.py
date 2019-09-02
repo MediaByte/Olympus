@@ -38,11 +38,9 @@ from os import system
 from sys import stdout
 import queue
 
-# LMDB database
-import lmdb
-
 # Custom module
 from sample import Sample
+from db import Database
 
 """
 Olympus entry point
@@ -61,8 +59,9 @@ def main():
     scan_option = ScanOption.CONTINUOUS
     event_types = DaqEventType.ON_DATA_AVAILABLE | DaqEventType.ON_END_OF_INPUT_SCAN | DaqEventType.ON_INPUT_SCAN_ERROR
     channel_count = high_channel - low_channel + 1
-    q = queue.Queue(maxsize=3)
+    q = queue.Queue(maxsize=500)
     ScanParams = namedtuple('ScanParams', 'buffer high_chan low_chan')
+    lmdb = Database()
 
     try:
         # Test if hardware device is connected to USB
@@ -109,7 +108,7 @@ def main():
 
                     data_sample = q.get_nowait()
 
-                    print(data_sample.buffer)
+                    lmdb.push_to_storage(data_sample.formatted_buffer())
 
 
         except KeyboardInterrupt:
@@ -133,7 +132,6 @@ converter is handled here.
 """
 def event_callback(args):
     scan_event_parameters = args.user_data
-
     sample = Sample('current', scan_event_parameters.buffer)
     
     # Add the data to the Queue
