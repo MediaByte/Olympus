@@ -26,14 +26,12 @@
 """
 # LMDB database
 import lmdb
-
-class Database:
     
-    def push_to_storage(self, data):
-        db = lmdb.open('./data', map_size=99999999)
+def push_to_storage(data):
+    db = lmdb.open('./data', map_size=99999999)
 
-        with db.begin(write=True, buffers=True) as trx:
+    with db.begin(write=True, buffers=True) as trx:
 
-            trx.put(data['time'], data['data'])
+        trx.put(data['time'], data['data'])
 
-        db.close()
+    db.close()

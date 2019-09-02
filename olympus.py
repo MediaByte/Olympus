@@ -34,96 +34,15 @@ from uldaq import ScanStatus, InterfaceType, AiInputMode, create_float_buffer, U
 
 # Python standard library modules
 from collections import namedtuple
-from os import system
+from os import system, environ
 from sys import stdout
 import queue
 
 # Custom module
 from sample import Sample
-from db import Database
+from db import push_to_storage
+from daq import DAQ
 
-"""
-Olympus entry point
-"""
-def main():
-    global q
-    daq_device = None
-    ai_daq_device = None
-    low_channel = 0
-    high_channel = 9
-    samples_per_channel = 1
-    rate = 500
-    input_mode = AiInputMode.SINGLE_ENDED
-    event_types = DaqEventType.ON_DATA_AVAILABLE
-    flags = AInScanFlag.DEFAULT
-    scan_option = ScanOption.CONTINUOUS
-    event_types = DaqEventType.ON_DATA_AVAILABLE | DaqEventType.ON_END_OF_INPUT_SCAN | DaqEventType.ON_INPUT_SCAN_ERROR
-    channel_count = high_channel - low_channel + 1
-    q = queue.Queue(maxsize=500)
-    ScanParams = namedtuple('ScanParams', 'buffer high_chan low_chan')
-    lmdb = Database()
-
-    try:
-        # Test if hardware device is connected to USB
-        devices = get_daq_device_inventory(InterfaceType.USB)
-        number_of_devices = len(devices)
-
-        if number_of_devices == 0:
-            raise Exception('Error: No DAQ devices found')
-
-        print('\nOlympus found', number_of_devices, 'DAQ device(s). Attempting to pair...')
-
-        # Instantiate the DAQ class
-        daq_device = DaqDevice(devices[0])
-        ai_daq_device = daq_device.get_ai_device()
-        if ai_daq_device is None:
-            raise Exception('\nError: The DAQ device does not support analog input')
-
-        # Verify that the specified device supports hardware pacing for analog input
-        ai_info = ai_daq_device.get_info()
-        if not ai_info.has_pacer():
-            raise Exception('\nError: The specified DAQ device does not support hardware paced analog input')
-
-        # Establish connection to the hardware
-        descriptor = daq_device.get_descriptor()
-        print('\nConnecting to ', descriptor.dev_string, '- Paired')
-        daq_device.connect()
-
-        print('\nPaired with your device(s)', 'Running...')
-
-        # Allocate a buffer
-        daq_data = create_float_buffer(channel_count, samples_per_channel)
-
-        # Store the scan event parameters for use in the callback function.
-        scan_event_parameters_daq = ScanParams(daq_data, high_channel, low_channel)
-
-        # Start the event driven acquisition.
-        daq_device.enable_event(event_types, channel_count * samples_per_channel, event_callback, scan_event_parameters_daq)
-        ai_daq_device.a_in_scan(low_channel, high_channel, input_mode, Range.BIP1VOLTS, samples_per_channel, rate, scan_option, flags, daq_data)
-
-        # Event Loop
-        try:
-            while True:
-                if q.qsize() > 0:
-
-                    data_sample = q.get_nowait()
-
-                    lmdb.push_to_storage(data_sample.formatted_buffer())
-
-
-        except KeyboardInterrupt:
-            pass
-
-    except Exception as e:
-        print('\n', e)
-
-    finally:
-        # Stop the acquisition if it is still running.
-        if ScanStatus.RUNNING:
-            ai_daq_device.scan_stop()
-        if daq_device.is_connected():
-            daq_device.disconnect()
-        daq_device.release()
 
 
 """
@@ -135,9 +54,56 @@ def event_callback(args):
     sample = Sample('current', scan_event_parameters.buffer)
     
     # Add the data to the Queue
-    q.put_nowait(sample)
+    event_q.put_nowait(sample)
 
 
+
+"""
+Olympus entry point
+"""
+def main():
+    global event_q
+    event_q = queue.Queue(maxsize=500)
+
+    olympus_settings = { 
+        "rate": environ.get('rate'), 
+        "samples_per_channel": environ.get('samples_per_channel'), 
+        "low_channel": environ.get('low_channel'), 
+        "high_channel": environ.get('high_channel'), 
+        "serial": environ.get('serial') 
+    }
+
+    daq = DAQ(olympus_settings, event_callback)
+
+    try:
+        
+        daq.initialize()
+
+        daq.begin_acquisition()
+
+        # Event Loop
+        try:
+            while True:
+                if event_q.qsize() > 0:
+
+                    data_sample = event_q.get_nowait()
+
+                    push_to_storage(data_sample.formatted_buffer())
+
+
+        except KeyboardInterrupt:
+            pass
+
+    except Exception as e:
+        print('\n', e)
+
+    finally:
+        # Stop the acquisition if it is still running.
+        if daq.status.RUNNING:
+            daq.ai_device.scan_stop()
+        if daq.daq_device.is_connected():
+            daq.daq_device.disconnect()
+        daq.daq_device.release()
 
 
 
