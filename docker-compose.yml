@@ -1,0 +1,127 @@
+version: '3.6'
+
+services:
+  master:
+    container_name: Master
+    build: ./data_acquisition
+    restart: always
+    command: python3 olympus.py
+    working_dir: /usr/src/acquisition
+    devices:
+      - '/dev:/dev'
+    privileged: true
+    environment:
+      rate: 2500
+      samples_per_channel: 1
+      low_channel: 0
+      high_channel: 7
+      serial: "01D5B39C"
+      db_path: "/srv/oxys/data/master/master.csv"
+      input_mode: "DIFFERENTIAL"
+      volts: 10
+
+    volumes:
+      - ./data_acquisition/olympus.py:/usr/src/acquisition/olympus.py
+      - ./data_acquisition/daq.py:/usr/src/acquisition/daq.py
+      - ./data_acquisition/sample.py:/usr/src/acquisition/sample.py
+      - ./data_acquisition/db.py:/usr/src/acquisition/db.py
+      - /srv/oxys/data/master:/srv/oxys/data/master:consistent
+      - type: bind
+        source: /media/oxys
+        target: /media/oxys
+        bind: 
+          propagation: shared
+
+  slave_one:
+    container_name: Slave_1
+    build: ./data_acquisition
+    restart: always
+    command: python3 olympus.py
+    working_dir: /usr/src/acquisition
+    devices:
+      - '/dev:/dev'
+    privileged: true
+    environment:
+      rate: 2500
+      samples_per_channel: 1
+      low_channel: 0
+      high_channel: 7
+      serial: "01DCF261"
+      db_path: "/srv/oxys/data/slave_1/slave_1.csv"
+      input_mode: "DIFFERENTIAL"
+      volts: 10
+
+    volumes:
+      - ./data_acquisition/olympus.py:/usr/src/acquisition/olympus.py
+      - ./data_acquisition/daq.py:/usr/src/acquisition/daq.py
+      - ./data_acquisition/sample.py:/usr/src/acquisition/sample.py
+      - ./data_acquisition/db.py:/usr/src/acquisition/db.py
+      - /srv/oxys/data/slave_1:/srv/oxys/data/slave_1:consistent
+      - type: bind
+        source: /media/oxys
+        target: /media/oxys
+        bind: 
+          propagation: shared
+
+
+  slave_two:
+    container_name: Slave_2
+    build: ./data_acquisition
+    restart: always
+    command: python3 olympus.py
+    working_dir: /usr/src/acquisition
+    devices:
+      - '/dev:/dev'
+    privileged: true
+    environment:
+      rate: 2500
+      samples_per_channel: 1
+      low_channel: 0
+      high_channel: 9
+      serial: "01D5B399"
+      db_path: "/srv/oxys/data/slave_2/slave_2.csv"
+      input_mode: "SINGLE_ENDED"
+      volts: 1
+
+    volumes:
+      - ./data_acquisition/olympus.py:/usr/src/acquisition/olympus.py
+      - ./data_acquisition/daq.py:/usr/src/acquisition/daq.py
+      - ./data_acquisition/sample.py:/usr/src/acquisition/sample.py
+      - ./data_acquisition/db.py:/usr/src/acquisition/db.py
+      - /srv/oxys/data/slave_2:/srv/oxys/data/slave_2:consistent
+      - type: bind
+        source: /media/oxys
+        target: /media/oxys
+        bind: 
+          propagation: shared
+
+  0lympus:
+    container_name: Olympus
+    build: ./
+    restart: always
+    command: npm start
+    working_dir: /usr/src/olympus
+    devices:
+      - '/dev:/dev'
+    privileged: true
+    ports:
+     - 5000:5000
+    environment:
+      PORT: 5000
+      RUN_DATA_TRANSFER: "/usr/src/olympus/retrieveData.sh"
+    volumes:
+      - ./package.json:/usr/src/olympus/package.json
+      - ./package-lock.json:/usr/src/olympus/package-lock.json
+      - ./retrieveData.sh:/usr/src/olympus/retrieveData.sh
+      - ./built:/usr/src/olympus/built
+      - ./dashboard/build:/usr/src/olympus/dashboard/build
+      - /srv/oxys/data/master:/srv/oxys/data/master:consistent
+      - /srv/oxys/data/slave_1:/srv/oxys/data/slave_1:consistent
+      - /srv/oxys/data/slave_2:/srv/oxys/data/slave_2:consistent
+      - /srv/oxys/flags:/srv/oxys/flags:consistent
+      - type: bind
+        source: /media/oxys
+        target: /media/oxys
+        bind: 
+          propagation: shared
+  
