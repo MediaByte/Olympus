@@ -24,7 +24,28 @@
  DAMAGE.
  Created by Mario Martin 2019
 """
-# LMDB database
+import csv
+import lmdb
+
+class Save:
+    def __init__(self, data, path):
+        self.data = data
+        self.path = path
+
+    def record(self):
+        with open(self.path, 'a') as writeFile:
+            writer = csv.writer(writeFile)
+
+            if len(self.data['data']) == 10:
+
+                writer.writerow([self.data['time'], self.data['data'][0], self.data['data'][1], self.data['data'][2], self.data['data'][3],
+                                 self.data['data'][4], self.data['data'][5], self.data['data'][6], self.data['data'][7], self.data['data'][8], self.data['data'][9]])
+            else:
+                writer.writerow([self.data['time'], self.data['data'][0], self.data['data'][1], self.data['data'][2], self.data['data'][3],
+                                 self.data['data'][4], self.data['data'][5], self.data['data'][6], self.data['data'][7]])
+
+                
+
 import lmdb
     
 def push_to_storage(data):
