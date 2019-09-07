@@ -28,16 +28,12 @@
 
  Created by Mario Martin 2019
 """
-# Python class for MCC DAQ hardware
-from uldaq import get_daq_device_inventory, DaqDevice, AInScanFlag, DaqEventType, WaitType, ScanOption
-from uldaq import ScanStatus, InterfaceType, AiInputMode, create_float_buffer, ULException, EventCallbackArgs, Range
-
 # Python standard library modules
 from collections import namedtuple
 from os import environ
 import queue
 
-# Custom module
+# Custom modules
 from sample import Sample
 from db import Save
 from daq import DAQ
@@ -66,16 +62,7 @@ def main():
     global event_q
     event_q = queue.Queue(maxsize=10)
 
-    # olympus_settings = {
-    #     "rate": 2500,
-    #     "samples_per_channel": 1,
-    #     "low_channel": 0,
-    #     "high_channel": 9,
-    #     "serial": '01DCF261',
-    #     "db_path": "/srv/oxys/data/slave_2/slave_2.csv",
-    #     "input_mode": 'SINGLE_ENDED'
-    # }
-
+    # Here we import the ENV variables from docker
     olympus_env_settings = {
         "rate": int(environ['rate']),
         "samples_per_channel": int(environ['samples_per_channel']),
@@ -87,25 +74,27 @@ def main():
         "range": environ['volts']
     }
 
+    # Instantiate the custom DAQ module
     daq = DAQ(olympus_env_settings, event_callback)
 
     try:
-
+        # Configure the hardware with our ENV variables
         daq.configure_mode(olympus_env_settings['input_mode'])
-
+        # Initialize the DAQ
         daq.initialize()
-
+        # Start the background acquisition process
         daq.begin_acquisition()
 
-        # Event Loop
+        # Olympus Event Loop
         try:
             while True:
+                # event_q holds the data coming in from the DAQ hardware
                 if event_q.qsize() > 0:
+                    # Each iteration of the loop pulls the data off the FIFO
                     data_sample = event_q.get_nowait()
-
+                    # Save the data from the FIFO
                     save = Save(data_sample.formatted_buffer(),
                                 olympus_env_settings['db_path'])
-
                     save.record()
 
         except KeyboardInterrupt:
