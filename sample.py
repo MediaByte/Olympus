@@ -27,30 +27,36 @@ import time
  Created by Mario Martin 2019
 """
 
+
 class Sample:
     def __init__(self, name, data):
         self.type_of = name
         self.timestamp = time.time()
-        self.buffer = list(data)
-        self.data = list()
+        self.buffer = data
         self.length = len(self.buffer)
         self.range_of_data = range(len(self.buffer))
-    
+
+    def raw(self):
+        self.formatted_buffer()
+        return self.data
+
     def formatted_buffer(self):
         the_fifo = self.range_of_data
         formatted_samples = list()
         formatted_channels = list()
-
         for each_sample in the_fifo:
             formatted_channels.append(self.buffer[each_sample])
 
-            if len(formatted_channels) == 10:
-                formatted_samples.append(formatted_channels)
+            if len(self.buffer) == 10:
+                formatted_samples += formatted_channels
                 formatted_channels = list()
 
+            if len(self.buffer) == 8:
+                formatted_samples += formatted_channels
+                formatted_channels = list()
 
         self.data = formatted_samples
 
-        return { 'time': str(self.timestamp).encode(), 'data': str(formatted_samples).encode() }
+        return {'time': self.timestamp, 'data': formatted_samples}
 
-
+        # return { 'time': str(self.timestamp).encode(), 'data': str(formatted_samples).encode() }

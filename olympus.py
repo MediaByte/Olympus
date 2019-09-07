@@ -34,49 +34,65 @@ from uldaq import ScanStatus, InterfaceType, AiInputMode, create_float_buffer, U
 
 # Python standard library modules
 from collections import namedtuple
-from os import system, environ
-from sys import stdout
+from os import environ
 import queue
 
 # Custom module
 from sample import Sample
-from db import push_to_storage
+from db import Save
 from daq import DAQ
-
 
 
 """
 Pre processed data from the analog to digital 
 converter is handled here.
 """
+
+
 def event_callback(args):
     scan_event_parameters = args.user_data
     sample = Sample('current', scan_event_parameters.buffer)
-    
+
     # Add the data to the Queue
     event_q.put_nowait(sample)
-
 
 
 """
 Olympus entry point
 """
+
+
 def main():
     global event_q
-    event_q = queue.Queue(maxsize=500)
+    event_q = queue.Queue(maxsize=10)
 
-    olympus_settings = { 
-        "rate": environ.get('rate'), 
-        "samples_per_channel": environ.get('samples_per_channel'), 
-        "low_channel": environ.get('low_channel'), 
-        "high_channel": environ.get('high_channel'), 
-        "serial": environ.get('serial') 
+    # olympus_settings = {
+    #     "rate": 2500,
+    #     "samples_per_channel": 1,
+    #     "low_channel": 0,
+    #     "high_channel": 9,
+    #     "serial": '01DCF261',
+    #     "db_path": "/srv/oxys/data/slave_2/slave_2.csv",
+    #     "input_mode": 'SINGLE_ENDED'
+    # }
+
+    olympus_env_settings = {
+        "rate": int(environ['rate']),
+        "samples_per_channel": int(environ['samples_per_channel']),
+        "low_channel": int(environ['low_channel']),
+        "high_channel": int(environ['high_channel']),
+        "serial": environ['serial'],
+        "db_path": environ['db_path'],
+        "input_mode": environ['input_mode'],
+        "range": environ['volts']
     }
 
-    daq = DAQ(olympus_settings, event_callback)
+    daq = DAQ(olympus_env_settings, event_callback)
 
     try:
-        
+
+        daq.configure_mode(olympus_env_settings['input_mode'])
+
         daq.initialize()
 
         daq.begin_acquisition()
@@ -85,11 +101,12 @@ def main():
         try:
             while True:
                 if event_q.qsize() > 0:
-
                     data_sample = event_q.get_nowait()
 
-                    push_to_storage(data_sample.formatted_buffer())
+                    save = Save(data_sample.formatted_buffer(),
+                                olympus_env_settings['db_path'])
 
+                    save.record()
 
         except KeyboardInterrupt:
             pass
@@ -106,8 +123,5 @@ def main():
         daq.daq_device.release()
 
 
-
-
 if __name__ == '__main__':
     main()
-

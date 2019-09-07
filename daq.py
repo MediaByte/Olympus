@@ -31,60 +31,90 @@ from collections import namedtuple
 from uldaq import get_daq_device_inventory, DaqDevice, AInScanFlag, DaqEventType, WaitType, ScanOption
 from uldaq import ScanStatus, InterfaceType, AiInputMode, create_float_buffer, ULException, EventCallbackArgs, Range
 
+
 class DAQ:
-        def __init__(self, options, cb):
-                self.rate = options['rate']
-                self.samples_per_channel = options['samples_per_channel']
-                self.low_channel = options['low_channel']
-                self.high_channel = options['high_channel']
-                self.channel_count = self.high_channel - self.low_channel + 1
-                self.daq_device = None
-                self.ai_device = None
-                self.data = None
-                self.input_mode = AiInputMode.SINGLE_ENDED
-                self.flags = AInScanFlag.DEFAULT
-                self.scan_option = ScanOption.CONTINUOUS | ScanOption.EXTCLOCK
-                self.event_types = DaqEventType.ON_DATA_AVAILABLE | DaqEventType.ON_END_OF_INPUT_SCAN | DaqEventType.ON_INPUT_SCAN_ERROR
-                self.ScanParams = namedtuple('ScanParams', 'buffer high_chan low_chan')
-                self.scan_event_parameters_daq = None
-                self.event_callback = cb
-                self.status = ScanStatus
-        
+    def __init__(self, options, cb):
+        self.serial = options['serial']
+        self.rate = int(options['rate'])
+        self.samples_per_channel = int(options['samples_per_channel'])
+        self.low_channel = int(options['low_channel'])
+        self.high_channel = int(options['high_channel'])
+        self.channel_count = int(self.high_channel) - int(self.low_channel) + 1
+        self.flags = AInScanFlag.DEFAULT
+        self.scan_option = ScanOption.CONTINUOUS
+        self.event_types = DaqEventType.ON_DATA_AVAILABLE | DaqEventType.ON_END_OF_INPUT_SCAN | DaqEventType.ON_INPUT_SCAN_ERROR
+        self.ScanParams = namedtuple('ScanParams', 'buffer high_chan low_chan')
+        self.event_callback = cb
+        self.status = ScanStatus
+        self.daq_device = None
+        self.ai_device = None
+        self.data = None
+        self.input_mode = None
+        self.scan_event_parameters_daq = None
+        self.range = options['range']
 
-        def initialize(self):
-                connected_devices = get_daq_device_inventory(InterfaceType.USB)
-                number_of_devices = len(connected_devices)
+    def configure_mode(self, mode):
+        if mode == "DIFFERENTIAL":
+            self.input_mode = AiInputMode.DIFFERENTIAL
+        elif mode == "SINGLE_ENDED":
+            self.input_mode = AiInputMode.SINGLE_ENDED
 
-                if number_of_devices == 0:
-                    raise Exception('OLYMPUS: RUNTIME ERROR - DAQ DEVICE NOT CONNECTED')
+        if self.range == '1':
+            self.range = Range.BIP1VOLTS
+        elif self.range == '2':
+            self.range = Range.BIP2VOLTS
+        elif self.range == '4':
+            self.range = Range.BIP4VOLTS
+        elif self.range == '5':
+            self.range = Range.BIP5VOLTS
+        elif self.range == '10':
+            self.range = Range.BIP10VOLTS
+        elif self.range == '20':
+            self.range = Range.BIP20VOLTS
+        elif self.range == '15':
+            self.range = Range.BIP15VOLTS
+        elif self.range == '30':
+            self.range = Range.BIP30VOLTS
+        elif self.range == '60':
+            self.range = Range.BIP60VOLTS
 
-                for daqs in connected_devices:
-                        if daqs.unique_id == environ.get('serial'):
-                                self.daq_device = DaqDevice(daqs)
-                                self.ai_device = self.daq_device.get_ai_device()
-                                self.daq_device.connect()
+    def initialize(self):
+        connected_devices = get_daq_device_inventory(InterfaceType.USB)
+        number_of_devices = len(connected_devices)
 
-                self.daq_data = create_float_buffer(self.channel_count, self.samples_per_channel)
-                self.scan_event_parameters_daq = self.ScanParams(self.daq_data, self.high_channel, self.low_channel)
+        if number_of_devices == 0:
+            raise Exception(
+                'OLYMPUS: RUNTIME ERROR - DAQ DEVICE NOT CONNECTED')
 
-                return True
+        for daqs in connected_devices:
+            if daqs.unique_id == self.serial:
+                self.daq_device = DaqDevice(daqs)
+                self.ai_device = self.daq_device.get_ai_device()
+                self.daq_device.connect()
 
-        def begin_acquisition(self):
-            self.daq_device.enable_event(
-                self.event_types, 
-                self.channel_count * self.samples_per_channel, 
-                self.event_callback, 
-                self.scan_event_parameters_daq
-            )
+        self.daq_data = create_float_buffer(
+            self.channel_count, self.samples_per_channel)
+        self.scan_event_parameters_daq = self.ScanParams(
+            self.daq_data, self.high_channel, self.low_channel)
 
-            self.ai_device.a_in_scan(
-                self.low_channel, 
-                self.high_channel, 
-                self.input_mode, 
-                Range.BIP1VOLTS, 
-                self.samples_per_channel, 
-                self.rate, 
-                self.scan_option, 
-                self.flags, 
-                self.daq_data
-            )
+        return True
+
+    def begin_acquisition(self):
+        self.daq_device.enable_event(
+            self.event_types,
+            self.channel_count * self.samples_per_channel,
+            self.event_callback,
+            self.scan_event_parameters_daq
+        )
+
+        self.ai_device.a_in_scan(
+            self.low_channel,
+            self.high_channel,
+            self.input_mode,
+            self.range,
+            self.samples_per_channel,
+            self.rate,
+            self.scan_option,
+            self.flags,
+            self.daq_data
+        )
