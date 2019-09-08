@@ -45,8 +45,6 @@ class Save:
                                  self.data['data'][4], self.data['data'][5], self.data['data'][6], self.data['data'][7]])
 
                 
-
-import lmdb
     
 def push_to_storage(data):
     db = lmdb.open('./data', map_size=99999999)
